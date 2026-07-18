@@ -8,6 +8,7 @@ import com.osmantusx.module.Module;
 import com.osmantusx.setting.IntSetting;
 import com.osmantusx.util.render.Color;
 import com.osmantusx.util.render.Render2DUtil;
+import com.osmantusx.util.render.Render3DUtil;
 import net.minecraft.block.Block;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.util.math.BlockPos;
@@ -68,7 +69,7 @@ public abstract class BlockEspModule extends Module {
         for (BlockPos pos : found) {
             Box box = new Box(pos.getX(), pos.getY(), pos.getZ(),
                     pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0);
-            double[] bounds = Esp.projectBox(box);
+            double[] bounds = Render3DUtil.projectBox(box);
             if (bounds != null) {
                 Render2DUtil.outline(context, bounds[0], bounds[1],
                         bounds[2] - bounds[0], bounds[3] - bounds[1], color);
