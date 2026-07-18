@@ -61,7 +61,7 @@ public final class Tracers extends Module {
             if (player().squaredDistanceTo(living) > maxSq) {
                 continue;
             }
-            double[] screen = Render3DUtil.worldToScreen(living.getBoundingBox().getCenter());
+            double[] screen = Render3DUtil.worldToScreen(Render3DUtil.interpolatedBox(living).getCenter());
             if (screen == null) {
                 continue;
             }

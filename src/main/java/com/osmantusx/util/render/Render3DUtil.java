@@ -1,16 +1,10 @@
 package com.osmantusx.util.render;
 
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderLayers;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexRendering;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShapes;
 
 /**
  * Projects world coordinates onto the 2D screen so ESP/Tracers can be drawn
@@ -110,54 +104,53 @@ public final class Render3DUtil {
     }
 
     /**
-     * Draws a crisp 3D outline box around {@code box} in world space during the
-     * world render pass. Unlike screen projection this has no per-frame delay
-     * and stays sharp at any distance.
+     * Projects a box to a screen rectangle, tolerating corners behind the
+     * camera. The box is shown whenever its center is in front of the camera
+     * (the same visibility rule tracers use), so ESP no longer drops mobs that
+     * tracers still point at. Corners behind the camera are ignored and the
+     * hull is clamped to the screen.
+     *
+     * @return {@code [minX, minY, maxX, maxY]} or {@code null} when the center
+     *         is behind the camera or the rectangle is degenerate.
      */
-    public static void drawBoxOutline(WorldRenderContext ctx, Box box, Color color, float lineWidth) {
-        MatrixStack matrices = ctx.matrices();
-        if (matrices == null) {
-            return;
+    public static double[] projectBoxLoose(Box box) {
+        double[] center = worldToScreen(box.getCenter());
+        if (center == null) {
+            return null;
         }
-        Vec3d cam = MC.gameRenderer.getCamera().getCameraPos();
-        VertexConsumer buffer = ctx.consumers().getBuffer(RenderLayers.lines());
-        VertexRendering.drawOutline(matrices, buffer, VoxelShapes.cuboid(box),
-                -cam.x, -cam.y, -cam.z, color.argb(), Math.max(1.0f, lineWidth));
-    }
-
-    /**
-     * Fills a translucent 3D box over {@code box} that shows through walls, used
-     * for chams so it reads clearly differently from the ESP outline.
-     */
-    public static void drawFilledBox(WorldRenderContext ctx, Box box, Color color) {
-        MatrixStack matrices = ctx.matrices();
-        if (matrices == null) {
-            return;
+        double minX = center[0];
+        double minY = center[1];
+        double maxX = center[0];
+        double maxY = center[1];
+        for (int i = 0; i < 8; i++) {
+            double x = (i & 1) == 0 ? box.minX : box.maxX;
+            double y = (i & 2) == 0 ? box.minY : box.maxY;
+            double z = (i & 4) == 0 ? box.minZ : box.maxZ;
+            double[] screen = worldToScreen(new Vec3d(x, y, z));
+            if (screen == null) {
+                continue;
+            }
+            minX = Math.min(minX, screen[0]);
+            minY = Math.min(minY, screen[1]);
+            maxX = Math.max(maxX, screen[0]);
+            maxY = Math.max(maxY, screen[1]);
         }
-        Vec3d cam = MC.gameRenderer.getCamera().getCameraPos();
-        VertexConsumer vc = ctx.consumers().getBuffer(RenderLayers.debugFilledBox());
-        MatrixStack.Entry entry = matrices.peek();
-        int argb = color.argb();
-        float x1 = (float) (box.minX - cam.x);
-        float y1 = (float) (box.minY - cam.y);
-        float z1 = (float) (box.minZ - cam.z);
-        float x2 = (float) (box.maxX - cam.x);
-        float y2 = (float) (box.maxY - cam.y);
-        float z2 = (float) (box.maxZ - cam.z);
-        // Bottom and top.
-        quad(vc, entry, argb, x1, y1, z1, x2, y1, z1, x2, y1, z2, x1, y1, z2);
-        quad(vc, entry, argb, x1, y2, z1, x1, y2, z2, x2, y2, z2, x2, y2, z1);
-        // North and south.
-        quad(vc, entry, argb, x1, y1, z1, x1, y2, z1, x2, y2, z1, x2, y1, z1);
-        quad(vc, entry, argb, x1, y1, z2, x2, y1, z2, x2, y2, z2, x1, y2, z2);
-        // West and east.
-        quad(vc, entry, argb, x1, y1, z1, x1, y1, z2, x1, y2, z2, x1, y2, z1);
-        quad(vc, entry, argb, x2, y1, z1, x2, y2, z1, x2, y2, z2, x2, y1, z2);
+        int sw = MC.getWindow().getScaledWidth();
+        int sh = MC.getWindow().getScaledHeight();
+        minX = Math.max(0, Math.min(minX, sw));
+        maxX = Math.max(0, Math.min(maxX, sw));
+        minY = Math.max(0, Math.min(minY, sh));
+        maxY = Math.max(0, Math.min(maxY, sh));
+        if (maxX - minX < 1 || maxY - minY < 1) {
+            return null;
+        }
+        return new double[]{minX, minY, maxX, maxY};
     }
 
     /**
      * Bounding box built from the entity's render-interpolated position so the
-     * box tracks the model smoothly instead of snapping once per tick.
+     * box tracks the model smoothly (no per-tick delay) instead of snapping
+     * once per tick.
      */
     public static Box interpolatedBox(Entity entity) {
         float td = MC.getRenderTickCounter().getTickProgress(true);
@@ -166,14 +159,5 @@ public final class Render3DUtil {
         double height = entity.getHeight();
         return new Box(pos.x - halfW, pos.y, pos.z - halfW,
                 pos.x + halfW, pos.y + height, pos.z + halfW);
-    }
-
-    private static void quad(VertexConsumer vc, MatrixStack.Entry e, int argb,
-                             float ax, float ay, float az, float bx, float by, float bz,
-                             float cx, float cy, float cz, float dx, float dy, float dz) {
-        vc.vertex(e, ax, ay, az).color(argb);
-        vc.vertex(e, bx, by, bz).color(argb);
-        vc.vertex(e, cx, cy, cz).color(argb);
-        vc.vertex(e, dx, dy, dz).color(argb);
     }
 }
