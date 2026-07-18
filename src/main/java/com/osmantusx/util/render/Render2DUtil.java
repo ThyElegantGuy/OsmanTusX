@@ -124,13 +124,33 @@ public final class Render2DUtil {
         context.drawText(MC.textRenderer, bold(text), (int) x, (int) y, color.argb(), true);
     }
 
-    /**
-     * Draws heavier text by overprinting the bold glyphs one pixel to the right,
-     * giving category headers a touch more weight than ordinary rows.
-     */
-    public static void extraBoldText(DrawContext context, String text, double x, double y, Color color) {
-        context.drawText(MC.textRenderer, bold(text), (int) x, (int) y, color.argb(), true);
-        context.drawText(MC.textRenderer, bold(text), (int) x + 1, (int) y, color.argb(), false);
+    /** Draws ordinary (non-bold) text with a shadow, a touch lighter than {@link #text}. */
+    public static void regularText(DrawContext context, String text, double x, double y, Color color) {
+        context.drawText(MC.textRenderer, text, (int) x, (int) y, color.argb(), true);
+    }
+
+    /** Interpolates a colour at position {@code t} in [0,1] across the given stops. */
+    public static Color gradient(double t, Color... stops) {
+        if (stops.length == 0) {
+            return Color.WHITE;
+        }
+        if (stops.length == 1) {
+            return stops[0];
+        }
+        t = Math.max(0, Math.min(1, t));
+        double scaled = t * (stops.length - 1);
+        int i = (int) Math.floor(scaled);
+        if (i >= stops.length - 1) {
+            return stops[stops.length - 1];
+        }
+        double f = scaled - i;
+        Color a = stops[i];
+        Color b = stops[i + 1];
+        return new Color(
+                (int) Math.round(a.r() + (b.r() - a.r()) * f),
+                (int) Math.round(a.g() + (b.g() - a.g()) * f),
+                (int) Math.round(a.b() + (b.b() - a.b()) * f),
+                (int) Math.round(a.a() + (b.a() - a.a()) * f));
     }
 
     public static void textNoShadow(DrawContext context, String text, double x, double y, Color color) {

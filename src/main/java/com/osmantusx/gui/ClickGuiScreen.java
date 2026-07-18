@@ -134,25 +134,53 @@ public final class ClickGuiScreen extends Screen {
         renderSettings(context, theme);
     }
 
-    /** Client name/logo, placed top-left like the startup GUI. */
-    private void renderTitle(DrawContext context, Theme theme) {
-        int x = 8;
-        int y = 6;
-        String base = "Osman Tus ";
-        Render2DUtil.extraBoldText(context, base, x, y, theme.accent());
+    /** Purple -> cyan -> pink gradient used for the client logo. */
+    private static final Color[] LOGO_GRADIENT = {
+            new Color(170, 90, 255, 255),
+            new Color(0, 220, 255, 255),
+            new Color(255, 95, 205, 255),
+    };
 
-        // A bigger, glowing "X" to make the logo pop.
-        double xX = x + Render2DUtil.textWidth(base);
-        float xs = 1.7f;
-        Color glow = theme.accent();
+    /**
+     * Client logo: "Osman Tus X" drawn with a purple/cyan/pink gradient inside a
+     * rounded panel, with the "X" enlarged to ~120% of the rest of the name.
+     */
+    private void renderTitle(DrawContext context, Theme theme) {
+        String base = "Osman Tus ";
+        float xScale = 1.2f;
+
+        int baseH = Render2DUtil.textHeight();
+        int xH = (int) Math.ceil(baseH * xScale);
+        int baseW = Render2DUtil.textWidth(base);
+        int xW = (int) Math.ceil(Render2DUtil.textWidth("X") * xScale);
+
+        int padX = 6;
+        int padY = 3;
+        int panelX = 6;
+        int panelY = 4;
+        int panelW = baseW + xW + padX * 2;
+        int panelH = xH + padY * 2;
+
+        // Rounded panel with a thin accent border.
+        Render2DUtil.roundedRect(context, panelX - 1, panelY - 1, panelW + 2, panelH + 2, 4,
+                theme.accent().withAlpha(200));
+        Render2DUtil.roundedRect(context, panelX, panelY, panelW, panelH, 4,
+                theme.background().withAlpha(235));
+
+        int total = base.length() + 1;
+        double tx = panelX + padX;
+        double baseY = panelY + padY + (xH - baseH) / 2.0;
+        for (int i = 0; i < base.length(); i++) {
+            String ch = String.valueOf(base.charAt(i));
+            Render2DUtil.text(context, ch, tx, baseY, Render2DUtil.gradient((double) i / (total - 1), LOGO_GRADIENT));
+            tx += Render2DUtil.textWidth(ch);
+        }
+
+        // Enlarged "X" at the end of the gradient (pink).
         context.getMatrices().pushMatrix();
-        context.getMatrices().translate((float) xX, (float) (y - 3));
-        context.getMatrices().scale(xs, xs);
-        Render2DUtil.text(context, "X", 1, 0, glow.withAlpha(150));
-        Render2DUtil.text(context, "X", -1, 0, glow.withAlpha(150));
-        Render2DUtil.text(context, "X", 0, 1, glow.withAlpha(150));
-        Render2DUtil.text(context, "X", 0, -1, glow.withAlpha(150));
-        Render2DUtil.text(context, "X", 0, 0, Color.WHITE);
+        context.getMatrices().translate((float) tx, (float) (panelY + padY));
+        context.getMatrices().scale(xScale, xScale);
+        Render2DUtil.text(context, "X", 0, 0, Render2DUtil.gradient(1.0, LOGO_GRADIENT));
         context.getMatrices().popMatrix();
     }
 
@@ -208,7 +236,7 @@ public final class ClickGuiScreen extends Screen {
     private void renderPanel(DrawContext context, Panel panel, Theme theme, double mouseX, double mouseY) {
         // Header.
         Render2DUtil.roundedRect(context, panel.x, panel.y, PANEL_WIDTH, HEADER_HEIGHT, 3, theme.accent());
-        Render2DUtil.extraBoldText(context, panel.category.getIcon() + "  " + panel.category.getDisplayName(),
+        Render2DUtil.text(context, panel.category.getIcon() + "  " + panel.category.getDisplayName(),
                 panel.x + 6, panel.y + 4, Color.WHITE);
 
         if (panel.collapsed) {
@@ -238,39 +266,39 @@ public final class ClickGuiScreen extends Screen {
         switch (row.kind) {
             case MODULE -> {
                 Color c = row.module.isEnabled() ? theme.accent() : theme.textDim();
-                Render2DUtil.text(context, row.module.getName(), tx, ty, c);
+                Render2DUtil.regularText(context, row.module.getName(), tx, ty, c);
                 if (!row.module.getSettings().isEmpty()) {
-                    Render2DUtil.text(context, EXPANDED.contains(row.module) ? "-" : "+",
+                    Render2DUtil.regularText(context, EXPANDED.contains(row.module) ? "-" : "+",
                             row.x + PANEL_WIDTH - 10, ty, theme.text());
                 }
             }
             case BOOL -> {
-                Render2DUtil.text(context, row.label, tx, ty, theme.text());
+                Render2DUtil.regularText(context, row.label, tx, ty, theme.text());
                 boolean on = ((BooleanSetting) row.setting).get();
                 Color box = on ? theme.accent() : theme.textDim();
                 Render2DUtil.rect(context, row.x + PANEL_WIDTH - 16, row.y + 3, 7, 7, box);
             }
             case ENUM -> {
-                Render2DUtil.text(context, row.label, tx, ty, theme.text());
-                Render2DUtil.text(context, String.valueOf(row.setting.get()),
+                Render2DUtil.regularText(context, row.label, tx, ty, theme.text());
+                Render2DUtil.regularText(context, String.valueOf(row.setting.get()),
                         row.x + PANEL_WIDTH - 12 - Render2DUtil.textWidth(String.valueOf(row.setting.get())), ty,
                         theme.accent());
             }
             case STRING -> {
-                Render2DUtil.text(context, row.label, tx, ty, theme.text());
+                Render2DUtil.regularText(context, row.label, tx, ty, theme.text());
                 String value = editingString == row.setting ? row.setting.get() + "_" : String.valueOf(row.setting.get());
-                Render2DUtil.text(context, value,
+                Render2DUtil.regularText(context, value,
                         row.x + PANEL_WIDTH - 12 - Render2DUtil.textWidth(value), ty, theme.accent());
             }
             case KEYBIND -> {
-                Render2DUtil.text(context, row.label, tx, ty, theme.text());
+                Render2DUtil.regularText(context, row.label, tx, ty, theme.text());
                 String key = listeningKeybind == row.setting || (row.module != null && listeningModule == row.module)
                         ? "..." : row.keyText;
-                Render2DUtil.text(context, key,
+                Render2DUtil.regularText(context, key,
                         row.x + PANEL_WIDTH - 12 - Render2DUtil.textWidth(key), ty, theme.accent());
             }
             case RAINBOW -> {
-                Render2DUtil.text(context, row.label, tx, ty, theme.text());
+                Render2DUtil.regularText(context, row.label, tx, ty, theme.text());
                 boolean on = ((ColorSetting) row.setting).isRainbow();
                 Render2DUtil.rect(context, row.x + PANEL_WIDTH - 16, row.y + 3, 7, 7,
                         on ? theme.accent() : theme.textDim());
@@ -281,7 +309,7 @@ public final class ClickGuiScreen extends Screen {
                 double barX = row.x + 8;
                 double barW = PANEL_WIDTH - 16;
                 double barY = row.y + 13;
-                Render2DUtil.text(context, row.label + ": " + row.valueText(), tx, row.y + 2, theme.text());
+                Render2DUtil.regularText(context, row.label + ": " + row.valueText(), tx, row.y + 2, theme.text());
                 Render2DUtil.rect(context, barX, barY, barW, 2, theme.textDim().withAlpha(120));
                 Render2DUtil.rect(context, barX, barY, barW * frac, 2, theme.accent());
                 Render2DUtil.rect(context, barX + barW * frac - 1, barY - 2, 2, 6, theme.text());
