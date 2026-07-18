@@ -1,16 +1,16 @@
 package com.osmantusx.module.hud.modules;
 
 import com.osmantusx.OsmanTusX;
+import com.osmantusx.gui.ClickGuiScreen;
 import com.osmantusx.module.Module;
 import com.osmantusx.module.hud.HudModule;
 import com.osmantusx.util.render.Color;
 import com.osmantusx.util.render.Render2DUtil;
 import net.minecraft.client.gui.DrawContext;
 
-import java.util.Comparator;
 import java.util.List;
 
-/** Lists all enabled modules, sorted by width, with a rainbow accent bar. */
+/** Lists all enabled modules, sorted per the ClickGUI sort mode, with a rainbow accent bar. */
 public final class ArrayListHud extends HudModule {
 
     public ArrayListHud() {
@@ -20,7 +20,7 @@ public final class ArrayListHud extends HudModule {
     private List<Module> activeModules() {
         List<Module> modules = OsmanTusX.MODULES.getEnabled();
         modules.removeIf(module -> !module.isVisible() || module instanceof HudModule);
-        modules.sort(Comparator.comparingInt((Module m) -> Render2DUtil.textWidth(m.getDisplayName())).reversed());
+        ClickGuiScreen.sortModules(modules);
         return modules;
     }
 

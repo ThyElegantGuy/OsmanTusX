@@ -61,8 +61,16 @@ public final class ClickGuiScreen extends Screen {
     private static double scale = 1.0;
     /** True once the user drags the scale slider; disables auto-fit on open. */
     private static boolean userAdjustedScale;
-    /** When true, active module names are listed down the left edge in-game. */
+    /** When true, active module names are listed down the side edge in-game. */
     private static boolean showModulesSide;
+
+    /** How the Array List and side module list order their entries. */
+    public enum SortMode {
+        LENGTH,
+        ALPHABETICAL
+    }
+
+    private static SortMode sortMode = SortMode.LENGTH;
 
     /** Persisted across openings so panels keep their positions and expansion. */
     private static final List<Panel> PANELS = new ArrayList<>();
@@ -97,6 +105,21 @@ public final class ClickGuiScreen extends Screen {
     /** @return whether the in-game side module list is enabled. */
     public static boolean showModulesSide() {
         return showModulesSide;
+    }
+
+    /** @return the active list ordering for the Array List and side list. */
+    public static SortMode sortMode() {
+        return sortMode;
+    }
+
+    /** Sorts modules by the active {@link SortMode}. */
+    public static void sortModules(List<Module> modules) {
+        if (sortMode == SortMode.ALPHABETICAL) {
+            modules.sort(java.util.Comparator.comparing(Module::getDisplayName, String.CASE_INSENSITIVE_ORDER));
+        } else {
+            modules.sort(java.util.Comparator
+                    .comparingInt((Module m) -> Render2DUtil.textWidth(m.getDisplayName())).reversed());
+        }
     }
 
     public ClickGuiScreen() {
@@ -268,7 +291,7 @@ public final class ClickGuiScreen extends Screen {
         int w = 150;
         int x = gearX() + GEAR_SIZE - w;
         int y = 20;
-        int h = 62;
+        int h = 90;
         Render2DUtil.roundedRect(context, x, y, w, h, 2, theme.background().withAlpha(240));
         Render2DUtil.outline(context, x, y, w, h, theme.accent());
 
@@ -290,6 +313,15 @@ public final class ClickGuiScreen extends Screen {
         // Side module list toggle.
         Render2DUtil.text(context, "Modules on side", x + 6, y + 48, theme.text());
         Render2DUtil.rect(context, x + w - 15, y + 48, 8, 8, showModulesSide ? theme.accent() : theme.textDim());
+
+        // Sort mode cycle.
+        String sortLabel = sortMode == SortMode.ALPHABETICAL ? "A-Z" : "Length";
+        Render2DUtil.text(context, "Sort modules", x + 6, y + 62, theme.text());
+        Render2DUtil.text(context, sortLabel, x + w - 6 - Render2DUtil.textWidth(sortLabel), y + 62, theme.accent());
+
+        // HUD editor button.
+        Render2DUtil.roundedRect(context, x + 6, y + 75, w - 12, 11, 2, theme.panel());
+        Render2DUtil.centeredText(context, "Edit HUD", x + w / 2.0, y + 77, theme.text());
     }
 
     private static String keyLabel(int key) {
@@ -583,7 +615,7 @@ public final class ClickGuiScreen extends Screen {
         int w = 150;
         int x = gearX() + GEAR_SIZE - w;
         int y = 20;
-        if (rawX < x || rawX > x + w || rawY < y || rawY > y + 62) {
+        if (rawX < x || rawX > x + w || rawY < y || rawY > y + 90) {
             return false;
         }
         if (rawY >= y + 4 && rawY <= y + 16) {
@@ -593,6 +625,10 @@ public final class ClickGuiScreen extends Screen {
             updateScale(rawX);
         } else if (rawY >= y + 46 && rawY <= y + 58) {
             showModulesSide = !showModulesSide;
+        } else if (rawY >= y + 60 && rawY <= y + 72) {
+            sortMode = sortMode == SortMode.LENGTH ? SortMode.ALPHABETICAL : SortMode.LENGTH;
+        } else if (rawY >= y + 75 && rawY <= y + 86) {
+            net.minecraft.client.MinecraftClient.getInstance().setScreen(new HudEditorScreen());
         }
         return true;
     }

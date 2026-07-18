@@ -50,10 +50,17 @@ public final class Render2DUtil {
 
     /** 1px outline around the given rectangle. */
     public static void outline(DrawContext context, double x, double y, double width, double height, Color color) {
-        rect(context, x, y, width, 1, color);
-        rect(context, x, y + height - 1, width, 1, color);
-        rect(context, x, y, 1, height, color);
-        rect(context, x + width - 1, y, 1, height, color);
+        outline(context, x, y, width, height, color, 1);
+    }
+
+    /** Outline around the given rectangle with a configurable border thickness. */
+    public static void outline(DrawContext context, double x, double y, double width, double height, Color color,
+                               double thickness) {
+        int t = (int) Math.max(1, Math.round(thickness));
+        rect(context, x, y, width, t, color);
+        rect(context, x, y + height - t, width, t, color);
+        rect(context, x, y, t, height, color);
+        rect(context, x + width - t, y, t, height, color);
     }
 
     /**

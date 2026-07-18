@@ -6,7 +6,9 @@ import com.osmantusx.event.events.Render2DEvent;
 import com.osmantusx.module.Category;
 import com.osmantusx.module.Module;
 import com.osmantusx.setting.BooleanSetting;
+import com.osmantusx.setting.ColorSetting;
 import com.osmantusx.setting.DoubleSetting;
+import com.osmantusx.setting.EnumSetting;
 import com.osmantusx.util.render.Color;
 import com.osmantusx.util.render.Render2DUtil;
 import com.osmantusx.util.render.Render3DUtil;
@@ -15,12 +17,21 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 
-/** Draws lines from the bottom of the screen to nearby entities. */
+/** Draws lines from a screen anchor to nearby entities. */
 public final class Tracers extends Module {
+
+    /** Where the tracer lines originate on the screen. */
+    public enum Location {
+        MOUSE,
+        BOTTOM
+    }
 
     private final BooleanSetting players = add(new BooleanSetting("Players", "Trace players", true));
     private final BooleanSetting mobs = add(new BooleanSetting("Mobs", "Trace mobs", true));
-    private final DoubleSetting thickness = add(new DoubleSetting("Thickness", "Line thickness", 1.6, 1, 4, 0.1));
+    private final EnumSetting<Location> location =
+            add(new EnumSetting<>("Location", "Where lines start from", Location.BOTTOM));
+    private final DoubleSetting width = add(new DoubleSetting("Width", "Line thickness", 1.6, 1, 5, 0.1));
+    private final ColorSetting color = add(new ColorSetting("Color", "Line color", new Color(120, 90, 255)));
 
     public Tracers() {
         super("Tracers", "Lines pointing to entities", Category.RENDER);
@@ -32,8 +43,10 @@ public final class Tracers extends Module {
             return;
         }
         DrawContext context = event.context();
-        double originX = mc.getWindow().getScaledWidth() / 2.0;
-        double originY = mc.getWindow().getScaledHeight();
+        double screenW = mc.getWindow().getScaledWidth();
+        double screenH = mc.getWindow().getScaledHeight();
+        double originX = screenW / 2.0;
+        double originY = location.get() == Location.MOUSE ? screenH / 2.0 : screenH;
         for (Entity entity : world().getEntities()) {
             if (!(entity instanceof LivingEntity living) || living == player() || living.isDead()) {
                 continue;
@@ -46,8 +59,8 @@ public final class Tracers extends Module {
             if (screen == null) {
                 continue;
             }
-            Color color = isPlayer ? OsmanTusX.THEMES.accent() : Color.RED;
-            Render2DUtil.line(context, originX, originY, screen[0], screen[1], color, thickness.get());
+            Color c = color.isRainbow() ? OsmanTusX.THEMES.rainbow(0) : color.get();
+            Render2DUtil.line(context, originX, originY, screen[0], screen[1], c, width.get());
         }
     }
 }

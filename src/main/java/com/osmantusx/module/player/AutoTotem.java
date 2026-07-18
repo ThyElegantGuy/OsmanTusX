@@ -4,6 +4,7 @@ import com.osmantusx.event.EventHandler;
 import com.osmantusx.event.events.TickEvent;
 import com.osmantusx.module.Category;
 import com.osmantusx.module.Module;
+import com.osmantusx.setting.IntSetting;
 import net.minecraft.item.Items;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
@@ -13,6 +14,10 @@ public final class AutoTotem extends Module {
 
     /** Hotbar button 40 in {@code SWAP} maps to the off-hand slot. */
     private static final int OFFHAND_SWAP_BUTTON = 40;
+
+    private final IntSetting delay = add(new IntSetting("Delay", "Ticks between refills (lower = faster)", 0, 0, 20));
+
+    private int ticks;
 
     public AutoTotem() {
         super("Auto Totem", "Auto-equips a totem to the off-hand", Category.PLAYER);
@@ -26,6 +31,10 @@ public final class AutoTotem extends Module {
         if (player().getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) {
             return;
         }
+        if (ticks++ < delay.get()) {
+            return;
+        }
+        ticks = 0;
         for (Slot slot : player().playerScreenHandler.slots) {
             if (slot.getStack().getItem() == Items.TOTEM_OF_UNDYING) {
                 mc.interactionManager.clickSlot(player().playerScreenHandler.syncId,
