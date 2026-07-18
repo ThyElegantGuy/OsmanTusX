@@ -58,8 +58,8 @@ public final class Esp extends Module {
                 continue;
             }
             Color c = color.isRainbow() ? OsmanTusX.THEMES.rainbow(0) : color.get();
-            Render2DUtil.outline(context, bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1],
-                    c, width.get());
+            Render2DUtil.thinOutline(context, bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1],
+                    c, width.get() / 3.0);
         }
     }
 }

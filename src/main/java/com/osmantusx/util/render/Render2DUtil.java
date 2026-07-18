@@ -64,6 +64,26 @@ public final class Render2DUtil {
     }
 
     /**
+     * Outline that supports sub-pixel border thickness. A GUI pixel is already
+     * several physical pixels once the GUI scale is applied, so for crisp thin
+     * ESP lines the whole outline is drawn under a shrink transform, keeping the
+     * rectangle the same size while making the border thinner than 1 GUI pixel.
+     */
+    public static void thinOutline(DrawContext context, double x, double y, double width, double height, Color color,
+                                   double thickness) {
+        if (thickness >= 1.0) {
+            outline(context, x, y, width, height, color, thickness);
+            return;
+        }
+        double s = Math.max(0.15, thickness);
+        var matrices = context.getMatrices();
+        matrices.pushMatrix();
+        matrices.scale((float) s, (float) s);
+        outline(context, x / s, y / s, width / s, height / s, color, 1);
+        matrices.popMatrix();
+    }
+
+    /**
      * Filled rectangle with rounded corners approximated by a corner ladder.
      *
      * <p>All coordinates are snapped to whole pixels and each corner row uses the

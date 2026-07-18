@@ -17,6 +17,7 @@
     "MinecraftClientMixin",
     "MouseMixin",
     "RenderTickCounterMixin",
+    "SimpleOptionMixin",
     "WorldRendererMixin"
   ],
   "injectors": {
