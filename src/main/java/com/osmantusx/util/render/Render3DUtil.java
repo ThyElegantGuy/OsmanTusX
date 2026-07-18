@@ -2,17 +2,30 @@ package com.osmantusx.util.render;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Camera;
+import net.minecraft.client.render.RenderLayers;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.VertexRendering;
+import net.minecraft.client.util.BufferAllocator;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.shape.VoxelShapes;
+import org.joml.Vector3f;
 
 /**
- * Projects world coordinates onto the 2D screen so ESP/Tracers can be drawn
- * cheaply through {@link net.minecraft.client.gui.DrawContext} during the HUD
- * pass, avoiding the fragile low-level 3D vertex APIs.
+ * Rendering helpers for the world (3D) pass and, for block/item finders, the
+ * cheaper 2D screen projection.
  *
- * <p>The maths implement a standard pinhole camera model using the game's
- * vertical FOV and the current camera basis vectors.</p>
+ * <p>Entity ESP/Chams/Tracers render in the world pass exactly the way Meteor
+ * and Wurst do: geometry is buffered into a self-managed immediate buffer using
+ * the vanilla {@code lines} / {@code debugFilledBox} render layers and flushed
+ * on the spot with {@link #flush()}. This is crisp at any distance and has no
+ * per-tick screen-projection delay.</p>
+ *
+ * <p>The 2D projection maths implement a standard pinhole camera model using
+ * the game's vertical FOV and the current camera basis vectors.</p>
  */
 public final class Render3DUtil {
 
@@ -21,6 +34,84 @@ public final class Render3DUtil {
 
     private static final MinecraftClient MC = MinecraftClient.getInstance();
     private static final Vec3d WORLD_UP = new Vec3d(0, 1, 0);
+
+    private static final BufferAllocator ALLOCATOR = new BufferAllocator(0x200000);
+    private static final VertexConsumerProvider.Immediate IMMEDIATE =
+            VertexConsumerProvider.immediate(ALLOCATOR);
+
+    private static Vec3d cameraPos() {
+        return MC.gameRenderer.getCamera().getCameraPos();
+    }
+
+    /**
+     * Draws a crisp world-space outline box around {@code box}. Buffered into
+     * the shared immediate buffer; call {@link #flush()} once all boxes for the
+     * frame are queued.
+     */
+    public static void drawBoxOutline(MatrixStack matrices, Box box, int argb, float lineWidth) {
+        Vec3d cam = cameraPos();
+        VertexConsumer buffer = IMMEDIATE.getBuffer(RenderLayers.lines());
+        VertexRendering.drawOutline(matrices, buffer, VoxelShapes.cuboid(box),
+                -cam.x, -cam.y, -cam.z, argb, Math.max(1.0f, lineWidth));
+    }
+
+    /** Draws a translucent world-space filled box over {@code box}. */
+    public static void drawFilledBox(MatrixStack matrices, Box box, int argb) {
+        Vec3d cam = cameraPos();
+        VertexConsumer vc = IMMEDIATE.getBuffer(RenderLayers.debugFilledBox());
+        MatrixStack.Entry entry = matrices.peek();
+
+        float x1 = (float) (box.minX - cam.x);
+        float y1 = (float) (box.minY - cam.y);
+        float z1 = (float) (box.minZ - cam.z);
+        float x2 = (float) (box.maxX - cam.x);
+        float y2 = (float) (box.maxY - cam.y);
+        float z2 = (float) (box.maxZ - cam.z);
+
+        quad(vc, entry, argb, x1, y1, z1, x2, y1, z1, x2, y1, z2, x1, y1, z2);
+        quad(vc, entry, argb, x1, y2, z1, x1, y2, z2, x2, y2, z2, x2, y2, z1);
+        quad(vc, entry, argb, x1, y1, z1, x1, y2, z1, x2, y2, z1, x2, y1, z1);
+        quad(vc, entry, argb, x1, y1, z2, x2, y1, z2, x2, y2, z2, x1, y2, z2);
+        quad(vc, entry, argb, x1, y1, z1, x1, y1, z2, x1, y2, z2, x1, y2, z1);
+        quad(vc, entry, argb, x2, y1, z1, x2, y2, z1, x2, y2, z2, x2, y1, z2);
+    }
+
+    /** Draws a world-space line from {@code start} to {@code end}. */
+    public static void drawLine(MatrixStack matrices, Vec3d start, Vec3d end, int argb, float lineWidth) {
+        Vec3d cam = cameraPos();
+        VertexConsumer vc = IMMEDIATE.getBuffer(RenderLayers.lines());
+        MatrixStack.Entry entry = matrices.peek();
+
+        float x1 = (float) (start.x - cam.x);
+        float y1 = (float) (start.y - cam.y);
+        float z1 = (float) (start.z - cam.z);
+        float x2 = (float) (end.x - cam.x);
+        float y2 = (float) (end.y - cam.y);
+        float z2 = (float) (end.z - cam.z);
+
+        Vector3f normal = new Vector3f(x2 - x1, y2 - y1, z2 - z1);
+        if (normal.lengthSquared() < 1.0e-6f) {
+            return;
+        }
+        normal.normalize();
+        float w = Math.max(1.0f, lineWidth);
+        vc.vertex(entry, x1, y1, z1).color(argb).normal(entry, normal).lineWidth(w);
+        vc.vertex(entry, x2, y2, z2).color(argb).normal(entry, normal).lineWidth(w);
+    }
+
+    /** Flushes all queued world-space geometry to the screen. */
+    public static void flush() {
+        IMMEDIATE.draw();
+    }
+
+    private static void quad(VertexConsumer vc, MatrixStack.Entry e, int argb,
+                             float ax, float ay, float az, float bx, float by, float bz,
+                             float cx, float cy, float cz, float dx, float dy, float dz) {
+        vc.vertex(e, ax, ay, az).color(argb);
+        vc.vertex(e, bx, by, bz).color(argb);
+        vc.vertex(e, cx, cy, cz).color(argb);
+        vc.vertex(e, dx, dy, dz).color(argb);
+    }
 
     /**
      * Converts a world position to GUI-space screen coordinates.
@@ -85,50 +176,6 @@ public final class Render3DUtil {
             double[] screen = worldToScreen(new Vec3d(x, y, z));
             if (screen == null) {
                 return null;
-            }
-            minX = Math.min(minX, screen[0]);
-            minY = Math.min(minY, screen[1]);
-            maxX = Math.max(maxX, screen[0]);
-            maxY = Math.max(maxY, screen[1]);
-        }
-        int sw = MC.getWindow().getScaledWidth();
-        int sh = MC.getWindow().getScaledHeight();
-        minX = Math.max(0, Math.min(minX, sw));
-        maxX = Math.max(0, Math.min(maxX, sw));
-        minY = Math.max(0, Math.min(minY, sh));
-        maxY = Math.max(0, Math.min(maxY, sh));
-        if (maxX - minX < 1 || maxY - minY < 1) {
-            return null;
-        }
-        return new double[]{minX, minY, maxX, maxY};
-    }
-
-    /**
-     * Projects a box to a screen rectangle, tolerating corners behind the
-     * camera. The box is shown whenever its center is in front of the camera
-     * (the same visibility rule tracers use), so ESP no longer drops mobs that
-     * tracers still point at. Corners behind the camera are ignored and the
-     * hull is clamped to the screen.
-     *
-     * @return {@code [minX, minY, maxX, maxY]} or {@code null} when the center
-     *         is behind the camera or the rectangle is degenerate.
-     */
-    public static double[] projectBoxLoose(Box box) {
-        double[] center = worldToScreen(box.getCenter());
-        if (center == null) {
-            return null;
-        }
-        double minX = center[0];
-        double minY = center[1];
-        double maxX = center[0];
-        double maxY = center[1];
-        for (int i = 0; i < 8; i++) {
-            double x = (i & 1) == 0 ? box.minX : box.maxX;
-            double y = (i & 2) == 0 ? box.minY : box.maxY;
-            double z = (i & 4) == 0 ? box.minZ : box.maxZ;
-            double[] screen = worldToScreen(new Vec3d(x, y, z));
-            if (screen == null) {
-                continue;
             }
             minX = Math.min(minX, screen[0]);
             minY = Math.min(minY, screen[1]);
