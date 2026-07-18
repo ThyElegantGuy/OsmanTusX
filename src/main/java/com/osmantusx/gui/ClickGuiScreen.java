@@ -136,7 +136,24 @@ public final class ClickGuiScreen extends Screen {
 
     /** Client name/logo, placed top-left like the startup GUI. */
     private void renderTitle(DrawContext context, Theme theme) {
-        Render2DUtil.text(context, OsmanTusX.NAME, 8, 6, theme.accent());
+        int x = 8;
+        int y = 6;
+        String base = "Osman Tus ";
+        Render2DUtil.extraBoldText(context, base, x, y, theme.accent());
+
+        // A bigger, glowing "X" to make the logo pop.
+        double xX = x + Render2DUtil.textWidth(base);
+        float xs = 1.7f;
+        Color glow = theme.accent();
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate((float) xX, (float) (y - 3));
+        context.getMatrices().scale(xs, xs);
+        Render2DUtil.text(context, "X", 1, 0, glow.withAlpha(150));
+        Render2DUtil.text(context, "X", -1, 0, glow.withAlpha(150));
+        Render2DUtil.text(context, "X", 0, 1, glow.withAlpha(150));
+        Render2DUtil.text(context, "X", 0, -1, glow.withAlpha(150));
+        Render2DUtil.text(context, "X", 0, 0, Color.WHITE);
+        context.getMatrices().popMatrix();
     }
 
     private void renderSearchBar(DrawContext context, Theme theme) {
@@ -191,7 +208,7 @@ public final class ClickGuiScreen extends Screen {
     private void renderPanel(DrawContext context, Panel panel, Theme theme, double mouseX, double mouseY) {
         // Header.
         Render2DUtil.roundedRect(context, panel.x, panel.y, PANEL_WIDTH, HEADER_HEIGHT, 3, theme.accent());
-        Render2DUtil.text(context, panel.category.getIcon() + "  " + panel.category.getDisplayName(),
+        Render2DUtil.extraBoldText(context, panel.category.getIcon() + "  " + panel.category.getDisplayName(),
                 panel.x + 6, panel.y + 4, Color.WHITE);
 
         if (panel.collapsed) {

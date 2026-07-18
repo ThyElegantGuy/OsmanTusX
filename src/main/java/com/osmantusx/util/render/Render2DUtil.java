@@ -124,6 +124,15 @@ public final class Render2DUtil {
         context.drawText(MC.textRenderer, bold(text), (int) x, (int) y, color.argb(), true);
     }
 
+    /**
+     * Draws heavier text by overprinting the bold glyphs one pixel to the right,
+     * giving category headers a touch more weight than ordinary rows.
+     */
+    public static void extraBoldText(DrawContext context, String text, double x, double y, Color color) {
+        context.drawText(MC.textRenderer, bold(text), (int) x, (int) y, color.argb(), true);
+        context.drawText(MC.textRenderer, bold(text), (int) x + 1, (int) y, color.argb(), false);
+    }
+
     public static void textNoShadow(DrawContext context, String text, double x, double y, Color color) {
         context.drawText(MC.textRenderer, text, (int) x, (int) y, color.argb(), false);
     }
