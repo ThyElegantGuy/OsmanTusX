@@ -6,6 +6,7 @@ import com.osmantusx.event.events.Render2DEvent;
 import com.osmantusx.module.Category;
 import com.osmantusx.module.Module;
 import com.osmantusx.setting.BooleanSetting;
+import com.osmantusx.setting.DoubleSetting;
 import com.osmantusx.util.render.Color;
 import com.osmantusx.util.render.Render2DUtil;
 import com.osmantusx.util.render.Render3DUtil;
@@ -19,6 +20,7 @@ public final class Tracers extends Module {
 
     private final BooleanSetting players = add(new BooleanSetting("Players", "Trace players", true));
     private final BooleanSetting mobs = add(new BooleanSetting("Mobs", "Trace mobs", true));
+    private final DoubleSetting thickness = add(new DoubleSetting("Thickness", "Line thickness", 1.6, 1, 4, 0.1));
 
     public Tracers() {
         super("Tracers", "Lines pointing to entities", Category.RENDER);
@@ -45,7 +47,7 @@ public final class Tracers extends Module {
                 continue;
             }
             Color color = isPlayer ? OsmanTusX.THEMES.accent() : Color.RED;
-            Render2DUtil.line(context, originX, originY, screen[0], screen[1], color);
+            Render2DUtil.line(context, originX, originY, screen[0], screen[1], color, thickness.get());
         }
     }
 }

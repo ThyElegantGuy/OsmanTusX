@@ -4,6 +4,7 @@ import com.osmantusx.event.EventBus;
 import com.osmantusx.event.events.Render2DEvent;
 import com.osmantusx.event.events.Render3DEvent;
 import com.osmantusx.event.events.TickEvent;
+import com.osmantusx.gui.SideModuleList;
 import com.osmantusx.manager.CommandManager;
 import com.osmantusx.manager.ConfigManager;
 import com.osmantusx.manager.FriendManager;
@@ -59,6 +60,7 @@ public final class OsmanTusX implements ClientModInitializer {
         EVENT_BUS.register(ROTATIONS);
         EVENT_BUS.register(COMMANDS);
         EVENT_BUS.register(new TickRateTracker());
+        EVENT_BUS.register(new SideModuleList());
 
         registerFabricBridges();
 

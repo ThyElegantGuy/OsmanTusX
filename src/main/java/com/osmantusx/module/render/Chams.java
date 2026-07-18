@@ -5,17 +5,29 @@ import com.osmantusx.event.EventHandler;
 import com.osmantusx.event.events.Render2DEvent;
 import com.osmantusx.module.Category;
 import com.osmantusx.module.Module;
+import com.osmantusx.setting.BooleanSetting;
+import com.osmantusx.setting.IntSetting;
 import com.osmantusx.util.render.Color;
 import com.osmantusx.util.render.Render2DUtil;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
 
 /**
  * Fills a translucent, always-visible overlay over living entities so they show
  * through walls (a projection-based take on classic chams).
+ *
+ * <p>The overlay is a soft top-down gradient with a thin outline rather than a
+ * single flat rectangle, which reads as a highlight on the entity instead of a
+ * hard, aliased block.</p>
  */
 public final class Chams extends Module {
+
+    private final BooleanSetting players = add(new BooleanSetting("Players", "Overlay players", true));
+    private final BooleanSetting mobs = add(new BooleanSetting("Mobs", "Overlay mobs", true));
+    private final BooleanSetting outline = add(new BooleanSetting("Outline", "Draw a border", true));
+    private final IntSetting opacity = add(new IntSetting("Opacity", "Fill opacity", 110, 20, 220));
 
     public Chams() {
         super("Chams", "See-through entity overlay", Category.RENDER);
@@ -27,16 +39,32 @@ public final class Chams extends Module {
             return;
         }
         DrawContext context = event.context();
-        Color fill = OsmanTusX.THEMES.accent().withAlpha(90);
         for (Entity entity : world().getEntities()) {
             if (!(entity instanceof LivingEntity living) || living == player() || living.isDead()) {
+                continue;
+            }
+            boolean isPlayer = living instanceof PlayerEntity;
+            if ((isPlayer && !players.get()) || (!isPlayer && !mobs.get())) {
                 continue;
             }
             double[] bounds = Esp.projectBox(living.getBoundingBox());
             if (bounds == null) {
                 continue;
             }
-            Render2DUtil.rect(context, bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1], fill);
+            double x = bounds[0];
+            double y = bounds[1];
+            double w = bounds[2] - bounds[0];
+            double h = bounds[3] - bounds[1];
+            if (w < 1 || h < 1) {
+                continue;
+            }
+            Color base = isPlayer ? OsmanTusX.THEMES.accent() : Color.RED;
+            int alpha = opacity.get();
+            Render2DUtil.gradientRect(context, x, y, w, h,
+                    base.withAlpha(alpha), base.withAlpha(Math.max(0, alpha - 70)));
+            if (outline.get()) {
+                Render2DUtil.outline(context, x, y, w, h, base.withAlpha(Math.min(255, alpha + 100)));
+            }
         }
     }
 }
