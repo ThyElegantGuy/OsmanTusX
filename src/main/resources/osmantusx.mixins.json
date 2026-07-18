@@ -2,6 +2,9 @@
   "required": true,
   "package": "com.osmantusx.mixin",
   "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "BlockMixin"
+  ],
   "client": [
     "CameraMixin",
     "ChatHudMixin",
@@ -13,7 +16,9 @@
     "KeyboardMixin",
     "MinecraftClientMixin",
     "MouseMixin",
-    "RenderTickCounterMixin"
+    "RenderTickCounterMixin",
+    "SimpleOptionMixin",
+    "WorldRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

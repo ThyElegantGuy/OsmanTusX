@@ -30,7 +30,7 @@ public final class ItemEsp extends Module {
             if (!(entity instanceof ItemEntity item)) {
                 continue;
             }
-            double[] bounds = Esp.projectBox(item.getBoundingBox());
+            double[] bounds = Render3DUtil.projectBox(item.getBoundingBox());
             if (bounds == null) {
                 continue;
             }

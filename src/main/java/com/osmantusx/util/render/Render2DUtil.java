@@ -50,10 +50,37 @@ public final class Render2DUtil {
 
     /** 1px outline around the given rectangle. */
     public static void outline(DrawContext context, double x, double y, double width, double height, Color color) {
-        rect(context, x, y, width, 1, color);
-        rect(context, x, y + height - 1, width, 1, color);
-        rect(context, x, y, 1, height, color);
-        rect(context, x + width - 1, y, 1, height, color);
+        outline(context, x, y, width, height, color, 1);
+    }
+
+    /** Outline around the given rectangle with a configurable border thickness. */
+    public static void outline(DrawContext context, double x, double y, double width, double height, Color color,
+                               double thickness) {
+        int t = (int) Math.max(1, Math.round(thickness));
+        rect(context, x, y, width, t, color);
+        rect(context, x, y + height - t, width, t, color);
+        rect(context, x, y, t, height, color);
+        rect(context, x + width - t, y, t, height, color);
+    }
+
+    /**
+     * Outline that supports sub-pixel border thickness. A GUI pixel is already
+     * several physical pixels once the GUI scale is applied, so for crisp thin
+     * ESP lines the whole outline is drawn under a shrink transform, keeping the
+     * rectangle the same size while making the border thinner than 1 GUI pixel.
+     */
+    public static void thinOutline(DrawContext context, double x, double y, double width, double height, Color color,
+                                   double thickness) {
+        if (thickness >= 1.0) {
+            outline(context, x, y, width, height, color, thickness);
+            return;
+        }
+        double s = Math.max(0.15, thickness);
+        var matrices = context.getMatrices();
+        matrices.pushMatrix();
+        matrices.scale((float) s, (float) s);
+        outline(context, x / s, y / s, width / s, height / s, color, 1);
+        matrices.popMatrix();
     }
 
     /**
