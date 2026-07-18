@@ -1,15 +1,16 @@
 package com.osmantusx.module.render;
 
 import com.osmantusx.event.EventHandler;
-import com.osmantusx.event.events.Render3DEvent;
+import com.osmantusx.event.events.Render2DEvent;
 import com.osmantusx.event.events.TickEvent;
 import com.osmantusx.module.Category;
 import com.osmantusx.module.Module;
 import com.osmantusx.setting.IntSetting;
 import com.osmantusx.util.render.Color;
+import com.osmantusx.util.render.Render2DUtil;
 import com.osmantusx.util.render.Render3DUtil;
 import net.minecraft.block.Block;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 
@@ -59,21 +60,21 @@ public abstract class BlockEspModule extends Module {
     }
 
     @EventHandler
-    public void onRender3D(Render3DEvent event) {
-        if (!inGame() || found.isEmpty()) {
+    public void onRender2D(Render2DEvent event) {
+        if (!inGame()) {
             return;
         }
-        MatrixStack matrices = event.context().matrices();
-        if (matrices == null) {
-            return;
-        }
-        int argb = color().argb();
+        DrawContext context = event.context();
+        Color color = color();
         for (BlockPos pos : found) {
             Box box = new Box(pos.getX(), pos.getY(), pos.getZ(),
                     pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0);
-            Render3DUtil.drawBoxOutline(matrices, box, argb, 1.5f);
+            double[] bounds = Render3DUtil.projectBox(box);
+            if (bounds != null) {
+                Render2DUtil.outline(context, bounds[0], bounds[1],
+                        bounds[2] - bounds[0], bounds[3] - bounds[1], color);
+            }
         }
-        Render3DUtil.flush();
     }
 
     @Override

@@ -13,7 +13,8 @@
     "KeyboardMixin",
     "MinecraftClientMixin",
     "MouseMixin",
-    "RenderTickCounterMixin"
+    "RenderTickCounterMixin",
+    "WorldRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
