@@ -28,7 +28,7 @@ public class KeyboardMixin {
         if (action != GLFW.GLFW_PRESS || key == GLFW.GLFW_KEY_UNKNOWN || mc.currentScreen != null) {
             return;
         }
-        if (key == ClickGuiScreen.OPEN_KEY) {
+        if (key == ClickGuiScreen.openKey()) {
             mc.setScreen(new ClickGuiScreen());
         } else {
             OsmanTusX.MODULES.onKeyPress(key);

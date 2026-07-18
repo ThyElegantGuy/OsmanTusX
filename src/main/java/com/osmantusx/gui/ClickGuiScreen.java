@@ -38,11 +38,18 @@ import java.util.function.DoubleSupplier;
 public final class ClickGuiScreen extends Screen {
 
     /** GLFW key that opens this screen (Right Shift by default). */
-    public static final int OPEN_KEY = GLFW.GLFW_KEY_RIGHT_SHIFT;
+    public static final int DEFAULT_OPEN_KEY = GLFW.GLFW_KEY_RIGHT_SHIFT;
 
     private static final int PANEL_WIDTH = 124;
     private static final int HEADER_HEIGHT = 16;
     private static final int ROW_HEIGHT = 13;
+
+    private static final int SEARCH_WIDTH = 160;
+    private static final int GEAR_SIZE = 14;
+
+    /** User-configurable open key and render scale, persisted across openings. */
+    private static int openKey = DEFAULT_OPEN_KEY;
+    private static double scale = 1.0;
 
     /** Persisted across openings so panels keep their positions and expansion. */
     private static final List<Panel> PANELS = new ArrayList<>();
@@ -57,10 +64,19 @@ public final class ClickGuiScreen extends Screen {
     private Module listeningModule;
     private KeybindSetting listeningKeybind;
 
+    private boolean settingsOpen;
+    private boolean listeningOpenKey;
+    private boolean draggingScale;
+
     private String search = "";
     private boolean searchFocused;
 
     private long openTime;
+
+    /** @return the currently bound key that opens the ClickGUI. */
+    public static int openKey() {
+        return openKey;
+    }
 
     public ClickGuiScreen() {
         super(Text.literal("Osman Tus X"));
@@ -85,33 +101,86 @@ public final class ClickGuiScreen extends Screen {
 
     // --- Rendering -----------------------------------------------------------
 
+    private int searchX() {
+        return this.width / 2 - (SEARCH_WIDTH + 4 + GEAR_SIZE) / 2;
+    }
+
+    private int gearX() {
+        return searchX() + SEARCH_WIDTH + 4;
+    }
+
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         float progress = Math.min(1f, (System.currentTimeMillis() - openTime) / 180f);
         Theme theme = OsmanTusX.THEMES.getActive();
 
         Render2DUtil.blurBackdrop(context, this.width, this.height, (int) (140 * progress));
-        renderSearchBar(context, theme);
 
+        // Panels are drawn under a scale transform; the top bar stays fixed size.
+        float s = (float) scale;
+        context.getMatrices().pushMatrix();
+        context.getMatrices().scale(s, s);
+        double pmx = mouseX / scale;
+        double pmy = mouseY / scale;
         for (Panel panel : PANELS) {
-            renderPanel(context, panel, theme, mouseX, mouseY);
+            renderPanel(context, panel, theme, pmx, pmy);
         }
+        context.getMatrices().popMatrix();
+
+        renderSearchBar(context, theme);
+        renderSettings(context, theme);
     }
 
     private void renderSearchBar(DrawContext context, Theme theme) {
-        int w = 180;
-        int x = this.width / 2 - w / 2;
+        int x = searchX();
         int y = 4;
-        Render2DUtil.roundedRect(context, x, y, w, 14, 3, theme.panel().withAlpha(230));
+        Render2DUtil.roundedRect(context, x, y, SEARCH_WIDTH, 14, 3, theme.panel().withAlpha(230));
         if (searchFocused) {
-            Render2DUtil.outline(context, x, y, w, 14, theme.accent());
+            Render2DUtil.outline(context, x, y, SEARCH_WIDTH, 14, theme.accent());
         }
         String shown = search.isEmpty() && !searchFocused ? "Search modules..." : search + (searchFocused ? "_" : "");
         Color textColor = search.isEmpty() && !searchFocused ? theme.textDim() : theme.text();
         Render2DUtil.text(context, shown, x + 5, y + 3, textColor);
+
+        // Gear button.
+        int gx = gearX();
+        Render2DUtil.roundedRect(context, gx, y, GEAR_SIZE, 14, 3,
+                settingsOpen ? theme.accent() : theme.panel().withAlpha(230));
+        Render2DUtil.centeredText(context, "\u2699", gx + GEAR_SIZE / 2.0, y + 3, theme.text());
     }
 
-    private void renderPanel(DrawContext context, Panel panel, Theme theme, int mouseX, int mouseY) {
+    private void renderSettings(DrawContext context, Theme theme) {
+        if (!settingsOpen) {
+            return;
+        }
+        int w = 150;
+        int x = gearX() + GEAR_SIZE - w;
+        int y = 20;
+        Render2DUtil.roundedRect(context, x, y, w, 46, 3, theme.background().withAlpha(240));
+        Render2DUtil.outline(context, x, y, w, 46, theme.accent());
+
+        // Hotkey row.
+        String keyName = listeningOpenKey ? "..."
+                : (openKey == GLFW.GLFW_KEY_UNKNOWN ? "None" : keyLabel(openKey));
+        Render2DUtil.text(context, "GUI Hotkey", x + 6, y + 5, theme.text());
+        Render2DUtil.text(context, keyName, x + w - 6 - Render2DUtil.textWidth(keyName), y + 5, theme.accent());
+
+        // Scale slider.
+        Render2DUtil.text(context, "Scale: " + String.format("%.2f", scale), x + 6, y + 20, theme.text());
+        double barX = x + 6;
+        double barW = w - 12;
+        double frac = (scale - 0.5) / (2.0 - 0.5);
+        Render2DUtil.rect(context, barX, y + 34, barW, 2, theme.textDim().withAlpha(120));
+        Render2DUtil.rect(context, barX, y + 34, barW * frac, 2, theme.accent());
+        Render2DUtil.rect(context, barX + barW * frac - 1, y + 32, 2, 6, theme.text());
+    }
+
+    private static String keyLabel(int key) {
+        String name = GLFW.glfwGetKeyName(key, 0);
+        return name != null ? name.toUpperCase() : "Key " + key;
+    }
+
+    private void renderPanel(DrawContext context, Panel panel, Theme theme, double mouseX, double mouseY) {
         // Header.
         Render2DUtil.roundedRect(context, panel.x, panel.y, PANEL_WIDTH, HEADER_HEIGHT, 3, theme.accent());
         Render2DUtil.text(context, panel.category.getIcon() + "  " + panel.category.getDisplayName(),
@@ -131,7 +200,7 @@ public final class ClickGuiScreen extends Screen {
         }
     }
 
-    private void renderRow(DrawContext context, Row row, Theme theme, int mouseX, int mouseY) {
+    private void renderRow(DrawContext context, Row row, Theme theme, double mouseX, double mouseY) {
         boolean hovered = mouseX >= row.x && mouseX <= row.x + PANEL_WIDTH
                 && mouseY >= row.y && mouseY <= row.y + ROW_HEIGHT;
         if (hovered) {
@@ -321,18 +390,30 @@ public final class ClickGuiScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
-        double mx = click.x();
-        double my = click.y();
+        double rawX = click.x();
+        double rawY = click.y();
         int button = click.button();
 
-        // Search bar focus.
-        int sw = 180;
-        int sx = this.width / 2 - sw / 2;
-        if (mx >= sx && mx <= sx + sw && my >= 4 && my <= 18) {
+        // Top bar (drawn unscaled) uses raw coordinates.
+        int sx = searchX();
+        if (rawX >= sx && rawX <= sx + SEARCH_WIDTH && rawY >= 4 && rawY <= 18) {
             searchFocused = true;
             return true;
         }
         searchFocused = false;
+
+        int gx = gearX();
+        if (rawX >= gx && rawX <= gx + GEAR_SIZE && rawY >= 4 && rawY <= 18) {
+            settingsOpen = !settingsOpen;
+            return true;
+        }
+        if (settingsOpen && handleSettingsClick(rawX, rawY)) {
+            return true;
+        }
+
+        // Panels are scaled, so convert the cursor into panel space.
+        double mx = rawX / scale;
+        double my = rawY / scale;
 
         for (Panel panel : PANELS) {
             // Header: drag with left, collapse with right.
@@ -358,6 +439,32 @@ public final class ClickGuiScreen extends Screen {
             }
         }
         return super.mouseClicked(click, doubled);
+    }
+
+    /** Handles clicks inside the settings popup. Returns true when consumed. */
+    private boolean handleSettingsClick(double rawX, double rawY) {
+        int w = 150;
+        int x = gearX() + GEAR_SIZE - w;
+        int y = 20;
+        if (rawX < x || rawX > x + w || rawY < y || rawY > y + 46) {
+            return false;
+        }
+        if (rawY >= y + 4 && rawY <= y + 16) {
+            listeningOpenKey = true;
+        } else if (rawY >= y + 30 && rawY <= y + 40) {
+            draggingScale = true;
+            updateScale(rawX);
+        }
+        return true;
+    }
+
+    private void updateScale(double rawX) {
+        int w = 150;
+        int x = gearX() + GEAR_SIZE - w;
+        double barX = x + 6;
+        double barW = w - 12;
+        double frac = Math.max(0, Math.min(1, (rawX - barX) / barW));
+        scale = 0.5 + frac * (2.0 - 0.5);
     }
 
     private void handleRowClick(Row row, int button, double mx) {
@@ -405,13 +512,17 @@ public final class ClickGuiScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        if (draggingScale) {
+            updateScale(click.x());
+            return true;
+        }
         if (draggingPanel != null) {
-            draggingPanel.x = click.x() - dragOffsetX;
-            draggingPanel.y = click.y() - dragOffsetY;
+            draggingPanel.x = click.x() / scale - dragOffsetX;
+            draggingPanel.y = click.y() / scale - dragOffsetY;
             return true;
         }
         if (activeSlider != null) {
-            updateSlider(activeSlider, click.x());
+            updateSlider(activeSlider, click.x() / scale);
             return true;
         }
         return super.mouseDragged(click, offsetX, offsetY);
@@ -421,12 +532,18 @@ public final class ClickGuiScreen extends Screen {
     public boolean mouseReleased(Click click) {
         draggingPanel = null;
         activeSlider = null;
+        draggingScale = false;
         return super.mouseReleased(click);
     }
 
     @Override
     public boolean keyPressed(KeyInput input) {
         int key = input.key();
+        if (listeningOpenKey) {
+            openKey = key == GLFW.GLFW_KEY_ESCAPE ? GLFW.GLFW_KEY_UNKNOWN : key;
+            listeningOpenKey = false;
+            return true;
+        }
         if (listeningKeybind != null) {
             listeningKeybind.set(key == GLFW.GLFW_KEY_ESCAPE ? GLFW.GLFW_KEY_UNKNOWN : key);
             listeningKeybind = null;
@@ -461,7 +578,7 @@ public final class ClickGuiScreen extends Screen {
                 return true;
             }
         }
-        if (key == GLFW.GLFW_KEY_ESCAPE) {
+        if (key == GLFW.GLFW_KEY_ESCAPE || key == openKey) {
             close();
             return true;
         }
