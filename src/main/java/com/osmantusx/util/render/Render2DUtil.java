@@ -3,6 +3,7 @@ package com.osmantusx.util.render;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.text.Text;
 
 /**
  * Helper methods for 2D GUI/HUD drawing built on top of {@link DrawContext}.
@@ -23,8 +24,13 @@ public final class Render2DUtil {
         return MC.textRenderer;
     }
 
+    /** Wraps a string in the vanilla bold style for slightly bolder glyphs. */
+    private static Text bold(String text) {
+        return Text.literal(text).styled(style -> style.withBold(true));
+    }
+
     public static int textWidth(String text) {
-        return MC.textRenderer.getWidth(text);
+        return MC.textRenderer.getWidth(bold(text));
     }
 
     public static int textHeight() {
@@ -50,23 +56,35 @@ public final class Render2DUtil {
         rect(context, x + width - 1, y, 1, height, color);
     }
 
-    /** Filled rectangle with rounded corners approximated by a corner ladder. */
+    /**
+     * Filled rectangle with rounded corners approximated by a corner ladder.
+     *
+     * <p>All coordinates are snapped to whole pixels and each corner row uses the
+     * same integer inset on the left and right, so every corner of the rectangle
+     * is rounded identically (no lopsided 3px-vs-2px corners).</p>
+     */
     public static void roundedRect(DrawContext context, double x, double y, double width, double height,
                                    double radius, Color color) {
-        double r = Math.max(0, Math.min(radius, Math.min(width, height) / 2.0));
+        int xi = (int) Math.round(x);
+        int yi = (int) Math.round(y);
+        int w = (int) Math.round(width);
+        int h = (int) Math.round(height);
+        int r = (int) Math.max(0, Math.min(radius, Math.min(w, h) / 2.0));
+        if (r <= 0) {
+            rect(context, xi, yi, w, h, color);
+            return;
+        }
         // Central cross that leaves the four corners empty.
-        rect(context, x + r, y, width - 2 * r, height, color);
-        rect(context, x, y + r, r, height - 2 * r, color);
-        rect(context, x + width - r, y + r, r, height - 2 * r, color);
-        // Corner arcs approximated per-row.
-        int steps = (int) Math.ceil(r);
-        for (int i = 0; i < steps; i++) {
+        rect(context, xi + r, yi, w - 2 * r, h, color);
+        rect(context, xi, yi + r, r, h - 2 * r, color);
+        rect(context, xi + w - r, yi + r, r, h - 2 * r, color);
+        // Corner arcs, symmetric integer insets applied to both sides.
+        for (int i = 0; i < r; i++) {
             double dy = i + 0.5;
-            double dx = Math.sqrt(Math.max(0, r * r - (r - dy) * (r - dy)));
-            double inset = r - dx;
-            // Top row i, bottom mirror.
-            rect(context, x + inset, y + i, width - 2 * inset, 1, color);
-            rect(context, x + inset, y + height - i - 1, width - 2 * inset, 1, color);
+            double dx = Math.sqrt(Math.max(0, (double) r * r - (r - dy) * (r - dy)));
+            int inset = (int) Math.round(r - dx);
+            rect(context, xi + inset, yi + i, w - 2 * inset, 1, color);
+            rect(context, xi + inset, yi + h - i - 1, w - 2 * inset, 1, color);
         }
     }
 
@@ -103,7 +121,7 @@ public final class Render2DUtil {
     }
 
     public static void text(DrawContext context, String text, double x, double y, Color color) {
-        context.drawText(MC.textRenderer, text, (int) x, (int) y, color.argb(), true);
+        context.drawText(MC.textRenderer, bold(text), (int) x, (int) y, color.argb(), true);
     }
 
     public static void textNoShadow(DrawContext context, String text, double x, double y, Color color) {

@@ -43,6 +43,8 @@ public final class ClickGuiScreen extends Screen {
     private static final int PANEL_WIDTH = 124;
     private static final int HEADER_HEIGHT = 16;
     private static final int ROW_HEIGHT = 13;
+    /** Sliders need extra height so the value label clears the track/knob. */
+    private static final int SLIDER_ROW_HEIGHT = 18;
 
     private static final int SEARCH_WIDTH = 160;
     private static final int GEAR_SIZE = 14;
@@ -127,14 +129,20 @@ public final class ClickGuiScreen extends Screen {
         }
         context.getMatrices().popMatrix();
 
+        renderTitle(context, theme);
         renderSearchBar(context, theme);
         renderSettings(context, theme);
+    }
+
+    /** Client name/logo, placed top-left like the startup GUI. */
+    private void renderTitle(DrawContext context, Theme theme) {
+        Render2DUtil.text(context, OsmanTusX.NAME, 8, 6, theme.accent());
     }
 
     private void renderSearchBar(DrawContext context, Theme theme) {
         int x = searchX();
         int y = 4;
-        Render2DUtil.roundedRect(context, x, y, SEARCH_WIDTH, 14, 3, theme.panel().withAlpha(230));
+        Render2DUtil.roundedRect(context, x, y, SEARCH_WIDTH, 14, 2, theme.panel().withAlpha(230));
         if (searchFocused) {
             Render2DUtil.outline(context, x, y, SEARCH_WIDTH, 14, theme.accent());
         }
@@ -144,7 +152,7 @@ public final class ClickGuiScreen extends Screen {
 
         // Gear button.
         int gx = gearX();
-        Render2DUtil.roundedRect(context, gx, y, GEAR_SIZE, 14, 3,
+        Render2DUtil.roundedRect(context, gx, y, GEAR_SIZE, 14, 2,
                 settingsOpen ? theme.accent() : theme.panel().withAlpha(230));
         Render2DUtil.centeredText(context, "\u2699", gx + GEAR_SIZE / 2.0, y + 3, theme.text());
     }
@@ -156,7 +164,7 @@ public final class ClickGuiScreen extends Screen {
         int w = 150;
         int x = gearX() + GEAR_SIZE - w;
         int y = 20;
-        Render2DUtil.roundedRect(context, x, y, w, 46, 3, theme.background().withAlpha(240));
+        Render2DUtil.roundedRect(context, x, y, w, 46, 2, theme.background().withAlpha(240));
         Render2DUtil.outline(context, x, y, w, 46, theme.accent());
 
         // Hotkey row.
@@ -191,7 +199,8 @@ public final class ClickGuiScreen extends Screen {
         }
 
         List<Row> rows = buildRows(panel);
-        double bottom = rows.isEmpty() ? panel.y + HEADER_HEIGHT + 2 : rows.get(rows.size() - 1).y + ROW_HEIGHT;
+        Row lastRow = rows.isEmpty() ? null : rows.get(rows.size() - 1);
+        double bottom = lastRow == null ? panel.y + HEADER_HEIGHT + 2 : lastRow.y + lastRow.height;
         Render2DUtil.rect(context, panel.x, panel.y + HEADER_HEIGHT, PANEL_WIDTH,
                 bottom - (panel.y + HEADER_HEIGHT), theme.background().withAlpha(235));
 
@@ -202,9 +211,9 @@ public final class ClickGuiScreen extends Screen {
 
     private void renderRow(DrawContext context, Row row, Theme theme, double mouseX, double mouseY) {
         boolean hovered = mouseX >= row.x && mouseX <= row.x + PANEL_WIDTH
-                && mouseY >= row.y && mouseY <= row.y + ROW_HEIGHT;
+                && mouseY >= row.y && mouseY <= row.y + row.height;
         if (hovered) {
-            Render2DUtil.rect(context, row.x, row.y, PANEL_WIDTH, ROW_HEIGHT, theme.panel().withAlpha(120));
+            Render2DUtil.rect(context, row.x, row.y, PANEL_WIDTH, row.height, theme.panel().withAlpha(120));
         }
         double tx = row.x + (row.kind == Row.Kind.MODULE ? 6 : 12);
         double ty = row.y + 3;
@@ -254,10 +263,11 @@ public final class ClickGuiScreen extends Screen {
                 frac = Math.max(0, Math.min(1, frac));
                 double barX = row.x + 8;
                 double barW = PANEL_WIDTH - 16;
-                Render2DUtil.rect(context, barX, row.y + 8, barW, 2, theme.textDim().withAlpha(120));
-                Render2DUtil.rect(context, barX, row.y + 8, barW * frac, 2, theme.accent());
-                Render2DUtil.rect(context, barX + barW * frac - 1, row.y + 6, 2, 6, theme.text());
-                Render2DUtil.text(context, row.label + ": " + row.valueText(), tx, row.y + 1, theme.text());
+                double barY = row.y + 13;
+                Render2DUtil.text(context, row.label + ": " + row.valueText(), tx, row.y + 2, theme.text());
+                Render2DUtil.rect(context, barX, barY, barW, 2, theme.textDim().withAlpha(120));
+                Render2DUtil.rect(context, barX, barY, barW * frac, 2, theme.accent());
+                Render2DUtil.rect(context, barX + barW * frac - 1, barY - 2, 2, 6, theme.text());
             }
         }
     }
@@ -308,22 +318,24 @@ public final class ClickGuiScreen extends Screen {
         }
         if (setting instanceof IntSetting is) {
             Row row = labelled(Row.Kind.SLIDER, panel.x, y, setting);
+            row.height = SLIDER_ROW_HEIGHT;
             row.min = is.getMin();
             row.max = is.getMax();
             row.get = () -> is.get();
             row.set = v -> is.set((int) Math.round(v));
             row.integer = true;
             rows.add(row);
-            return y + ROW_HEIGHT;
+            return y + row.height;
         }
         if (setting instanceof DoubleSetting ds) {
             Row row = labelled(Row.Kind.SLIDER, panel.x, y, setting);
+            row.height = SLIDER_ROW_HEIGHT;
             row.min = ds.getMin();
             row.max = ds.getMax();
             row.get = () -> ds.get();
             row.set = ds::set;
             rows.add(row);
-            return y + ROW_HEIGHT;
+            return y + row.height;
         }
         if (setting instanceof EnumSetting<?>) {
             rows.add(labelled(Row.Kind.ENUM, panel.x, y, setting));
@@ -356,6 +368,7 @@ public final class ClickGuiScreen extends Screen {
 
     private double addColorChannel(List<Row> rows, Panel panel, ColorSetting cs, double y, String label, int channel) {
         Row row = new Row(Row.Kind.SLIDER, panel.x, y);
+        row.height = SLIDER_ROW_HEIGHT;
         row.setting = cs;
         row.label = label;
         row.min = 0;
@@ -376,7 +389,7 @@ public final class ClickGuiScreen extends Screen {
             });
         };
         rows.add(row);
-        return y + ROW_HEIGHT;
+        return y + row.height;
     }
 
     private Row labelled(Row.Kind kind, double x, double y, Setting<?> setting) {
@@ -431,7 +444,7 @@ public final class ClickGuiScreen extends Screen {
                 continue;
             }
             for (Row row : buildRows(panel)) {
-                if (my < row.y || my > row.y + ROW_HEIGHT || mx < row.x || mx > row.x + PANEL_WIDTH) {
+                if (my < row.y || my > row.y + row.height || mx < row.x || mx > row.x + PANEL_WIDTH) {
                     continue;
                 }
                 handleRowClick(row, button, mx);
@@ -626,6 +639,7 @@ public final class ClickGuiScreen extends Screen {
         String label = "";
         String keyText = "None";
 
+        double height = ROW_HEIGHT;
         DoubleSupplier get;
         DoubleConsumer set;
         double min;
