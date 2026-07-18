@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "osmantusx",
+  "version": "${version}",
+  "name": "Osman Tus X",
+  "description": "Osman Tus X - a modular, event-driven Minecraft utility client built on Fabric for educational use in single-player, development environments, and consenting private servers.",
+  "authors": [
+    "Osman Tus X Team"
+  ],
+  "contact": {
+    "homepage": "https://github.com/DRIPPITYDRIP",
+    "sources": "https://github.com/DRIPPITYDRIP"
+  },
+  "license": "MIT",
+  "icon": "assets/osmantusx/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.osmantusx.OsmanTusX"
+    ]
+  },
+  "mixins": [
+    "osmantusx.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
