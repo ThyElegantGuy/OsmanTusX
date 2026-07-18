@@ -48,10 +48,19 @@ public final class ClickGuiScreen extends Screen {
 
     private static final int SEARCH_WIDTH = 160;
     private static final int GEAR_SIZE = 14;
+    /** Screen-space gap reserved at the top for the logo/search bar. */
+    private static final int TOP_MARGIN = 24;
+    /** Allowed range for the GUI render scale. */
+    private static final double MIN_SCALE = 0.3;
+    private static final double MAX_SCALE = 2.0;
+    /** Where panels start inside the (scaled, top-margin-shifted) panel space. */
+    private static final int PANEL_START_Y = 2;
 
     /** User-configurable open key and render scale, persisted across openings. */
     private static int openKey = DEFAULT_OPEN_KEY;
     private static double scale = 1.0;
+    /** True once the user drags the scale slider; disables auto-fit on open. */
+    private static boolean userAdjustedScale;
 
     /** Persisted across openings so panels keep their positions and expansion. */
     private static final List<Panel> PANELS = new ArrayList<>();
@@ -90,10 +99,25 @@ public final class ClickGuiScreen extends Screen {
         if (PANELS.isEmpty()) {
             int i = 0;
             for (Category category : Category.values()) {
-                PANELS.add(new Panel(category, 8 + i * (PANEL_WIDTH + 6), 22));
+                PANELS.add(new Panel(category, 8 + i * (PANEL_WIDTH + 6), PANEL_START_Y));
                 i++;
             }
         }
+        if (!userAdjustedScale) {
+            scale = computeFitScale();
+        }
+    }
+
+    /** Picks a default scale so every category panel fits on screen. */
+    private double computeFitScale() {
+        double neededWidth = 8 + Category.values().length * (PANEL_WIDTH + 6) + 8;
+        int maxModules = 1;
+        for (Category category : Category.values()) {
+            maxModules = Math.max(maxModules, OsmanTusX.MODULES.getByCategory(category).size());
+        }
+        double neededHeight = PANEL_START_Y + HEADER_HEIGHT + maxModules * ROW_HEIGHT + 8;
+        double fit = Math.min(this.width / neededWidth, (this.height - TOP_MARGIN) / neededHeight);
+        return Math.max(MIN_SCALE, Math.min(1.0, fit));
     }
 
     @Override
@@ -118,12 +142,14 @@ public final class ClickGuiScreen extends Screen {
 
         Render2DUtil.blurBackdrop(context, this.width, this.height, (int) (140 * progress));
 
-        // Panels are drawn under a scale transform; the top bar stays fixed size.
+        // Panels are drawn under a scale transform and shifted below the top bar;
+        // the logo and search bar stay fixed size.
         float s = (float) scale;
         context.getMatrices().pushMatrix();
+        context.getMatrices().translate(0f, TOP_MARGIN);
         context.getMatrices().scale(s, s);
         double pmx = mouseX / scale;
-        double pmy = mouseY / scale;
+        double pmy = (mouseY - TOP_MARGIN) / scale;
         for (Panel panel : PANELS) {
             renderPanel(context, panel, theme, pmx, pmy);
         }
@@ -222,7 +248,7 @@ public final class ClickGuiScreen extends Screen {
         Render2DUtil.text(context, "Scale: " + String.format("%.2f", scale), x + 6, y + 20, theme.text());
         double barX = x + 6;
         double barW = w - 12;
-        double frac = (scale - 0.5) / (2.0 - 0.5);
+        double frac = (scale - MIN_SCALE) / (MAX_SCALE - MIN_SCALE);
         Render2DUtil.rect(context, barX, y + 34, barW, 2, theme.textDim().withAlpha(120));
         Render2DUtil.rect(context, barX, y + 34, barW * frac, 2, theme.accent());
         Render2DUtil.rect(context, barX + barW * frac - 1, y + 32, 2, 6, theme.text());
@@ -469,9 +495,9 @@ public final class ClickGuiScreen extends Screen {
             return true;
         }
 
-        // Panels are scaled, so convert the cursor into panel space.
+        // Panels are scaled and shifted, so convert the cursor into panel space.
         double mx = rawX / scale;
-        double my = rawY / scale;
+        double my = (rawY - TOP_MARGIN) / scale;
 
         for (Panel panel : PANELS) {
             // Header: drag with left, collapse with right.
@@ -522,7 +548,8 @@ public final class ClickGuiScreen extends Screen {
         double barX = x + 6;
         double barW = w - 12;
         double frac = Math.max(0, Math.min(1, (rawX - barX) / barW));
-        scale = 0.5 + frac * (2.0 - 0.5);
+        scale = MIN_SCALE + frac * (MAX_SCALE - MIN_SCALE);
+        userAdjustedScale = true;
     }
 
     private void handleRowClick(Row row, int button, double mx) {
@@ -576,7 +603,7 @@ public final class ClickGuiScreen extends Screen {
         }
         if (draggingPanel != null) {
             draggingPanel.x = click.x() / scale - dragOffsetX;
-            draggingPanel.y = click.y() / scale - dragOffsetY;
+            draggingPanel.y = (click.y() - TOP_MARGIN) / scale - dragOffsetY;
             return true;
         }
         if (activeSlider != null) {
