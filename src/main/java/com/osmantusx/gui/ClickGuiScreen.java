@@ -61,6 +61,8 @@ public final class ClickGuiScreen extends Screen {
     private static double scale = 1.0;
     /** True once the user drags the scale slider; disables auto-fit on open. */
     private static boolean userAdjustedScale;
+    /** When true, active module names are listed down the left edge in-game. */
+    private static boolean showModulesSide;
 
     /** Persisted across openings so panels keep their positions and expansion. */
     private static final List<Panel> PANELS = new ArrayList<>();
@@ -84,9 +86,17 @@ public final class ClickGuiScreen extends Screen {
 
     private long openTime;
 
+    /** Description of the row currently under the cursor, drawn as a tooltip. */
+    private String tooltip;
+
     /** @return the currently bound key that opens the ClickGUI. */
     public static int openKey() {
         return openKey;
+    }
+
+    /** @return whether the in-game side module list is enabled. */
+    public static boolean showModulesSide() {
+        return showModulesSide;
     }
 
     public ClickGuiScreen() {
@@ -144,6 +154,7 @@ public final class ClickGuiScreen extends Screen {
 
         // Panels are drawn under a scale transform and shifted below the top bar;
         // the logo and search bar stay fixed size.
+        tooltip = null;
         float s = (float) scale;
         context.getMatrices().pushMatrix();
         context.getMatrices().translate(0f, TOP_MARGIN);
@@ -158,6 +169,28 @@ public final class ClickGuiScreen extends Screen {
         renderTitle(context, theme);
         renderSearchBar(context, theme);
         renderSettings(context, theme);
+        renderTooltip(context, theme, mouseX, mouseY);
+    }
+
+    /** Draws the hovered element's description in a small box beside the cursor. */
+    private void renderTooltip(DrawContext context, Theme theme, int mouseX, int mouseY) {
+        if (tooltip == null || tooltip.isEmpty()) {
+            return;
+        }
+        int textW = Render2DUtil.textWidth(tooltip);
+        int boxW = textW + 8;
+        int boxH = Render2DUtil.textHeight() + 6;
+        int x = mouseX + 10;
+        int y = mouseY + 10;
+        if (x + boxW > this.width) {
+            x = this.width - boxW - 2;
+        }
+        if (y + boxH > this.height) {
+            y = this.height - boxH - 2;
+        }
+        Render2DUtil.roundedRect(context, x, y, boxW, boxH, 2, theme.background().withAlpha(240));
+        Render2DUtil.outline(context, x, y, boxW, boxH, theme.accent());
+        Render2DUtil.regularText(context, tooltip, x + 4, y + 4, theme.text());
     }
 
     /** Purple -> cyan -> pink gradient used for the client logo. */
@@ -235,8 +268,9 @@ public final class ClickGuiScreen extends Screen {
         int w = 150;
         int x = gearX() + GEAR_SIZE - w;
         int y = 20;
-        Render2DUtil.roundedRect(context, x, y, w, 46, 2, theme.background().withAlpha(240));
-        Render2DUtil.outline(context, x, y, w, 46, theme.accent());
+        int h = 62;
+        Render2DUtil.roundedRect(context, x, y, w, h, 2, theme.background().withAlpha(240));
+        Render2DUtil.outline(context, x, y, w, h, theme.accent());
 
         // Hotkey row.
         String keyName = listeningOpenKey ? "..."
@@ -252,6 +286,10 @@ public final class ClickGuiScreen extends Screen {
         Render2DUtil.rect(context, barX, y + 34, barW, 2, theme.textDim().withAlpha(120));
         Render2DUtil.rect(context, barX, y + 34, barW * frac, 2, theme.accent());
         Render2DUtil.rect(context, barX + barW * frac - 1, y + 32, 2, 6, theme.text());
+
+        // Side module list toggle.
+        Render2DUtil.text(context, "Modules on side", x + 6, y + 48, theme.text());
+        Render2DUtil.rect(context, x + w - 15, y + 48, 8, 8, showModulesSide ? theme.accent() : theme.textDim());
     }
 
     private static String keyLabel(int key) {
@@ -285,6 +323,7 @@ public final class ClickGuiScreen extends Screen {
                 && mouseY >= row.y && mouseY <= row.y + row.height;
         if (hovered) {
             Render2DUtil.rect(context, row.x, row.y, PANEL_WIDTH, row.height, theme.panel().withAlpha(120));
+            tooltip = descriptionFor(row);
         }
         double tx = row.x + (row.kind == Row.Kind.MODULE ? 6 : 12);
         double ty = row.y + 3;
@@ -341,6 +380,20 @@ public final class ClickGuiScreen extends Screen {
                 Render2DUtil.rect(context, barX + barW * frac - 1, barY - 2, 2, 6, theme.text());
             }
         }
+    }
+
+    /** @return the description shown when hovering the given row, or null. */
+    private String descriptionFor(Row row) {
+        if (row.kind == Row.Kind.MODULE && row.module != null) {
+            return row.module.getDescription();
+        }
+        if (row.kind == Row.Kind.KEYBIND && row.setting == null && row.module != null) {
+            return "Key that toggles " + row.module.getName();
+        }
+        if (row.setting != null) {
+            return row.setting.getDescription();
+        }
+        return null;
     }
 
     // --- Layout --------------------------------------------------------------
@@ -530,7 +583,7 @@ public final class ClickGuiScreen extends Screen {
         int w = 150;
         int x = gearX() + GEAR_SIZE - w;
         int y = 20;
-        if (rawX < x || rawX > x + w || rawY < y || rawY > y + 46) {
+        if (rawX < x || rawX > x + w || rawY < y || rawY > y + 62) {
             return false;
         }
         if (rawY >= y + 4 && rawY <= y + 16) {
@@ -538,6 +591,8 @@ public final class ClickGuiScreen extends Screen {
         } else if (rawY >= y + 30 && rawY <= y + 40) {
             draggingScale = true;
             updateScale(rawX);
+        } else if (rawY >= y + 46 && rawY <= y + 58) {
+            showModulesSide = !showModulesSide;
         }
         return true;
     }

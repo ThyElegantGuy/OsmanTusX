@@ -97,27 +97,36 @@ public final class Render2DUtil {
         rect(context, 0, 0, screenWidth, screenHeight, new Color(10, 12, 18, alpha));
     }
 
-    /**
-     * Draws a 1px line by sampling points along the segment (DDA). Cheap enough
-     * for the handful of tracers drawn per frame and avoids low-level buffers.
-     */
+    /** Draws a smooth line using the default thickness. */
     public static void line(DrawContext context, double x1, double y1, double x2, double y2, Color color) {
+        line(context, x1, y1, x2, y2, color, 1.6);
+    }
+
+    /**
+     * Draws a straight line as a single rotated quad.
+     *
+     * <p>The old implementation stamped one tiny filled square per pixel along
+     * the segment, which both looked jagged and flooded the GUI buffer with
+     * thousands of quads per frame (collapsing FPS when many tracers were on).
+     * Rotating one quad through the {@link DrawContext} matrix stack yields a
+     * clean, evenly-weighted line at a constant, negligible cost.</p>
+     */
+    public static void line(DrawContext context, double x1, double y1, double x2, double y2, Color color,
+                            double thickness) {
         double dx = x2 - x1;
         double dy = y2 - y1;
-        int steps = (int) Math.max(Math.abs(dx), Math.abs(dy));
-        if (steps <= 0) {
+        double length = Math.sqrt(dx * dx + dy * dy);
+        if (length < 1.0e-3) {
             return;
         }
-        double stepX = dx / steps;
-        double stepY = dy / steps;
+        int t = (int) Math.max(1, Math.round(thickness));
         int argb = color.argb();
-        double x = x1;
-        double y = y1;
-        for (int i = 0; i <= steps; i++) {
-            context.fill((int) x, (int) y, (int) x + 1, (int) y + 1, argb);
-            x += stepX;
-            y += stepY;
-        }
+        var matrices = context.getMatrices();
+        matrices.pushMatrix();
+        matrices.translate((float) x1, (float) y1);
+        matrices.rotate((float) Math.atan2(dy, dx));
+        context.fill(0, -t / 2, (int) Math.round(length), -t / 2 + t, argb);
+        matrices.popMatrix();
     }
 
     public static void text(DrawContext context, String text, double x, double y, Color color) {

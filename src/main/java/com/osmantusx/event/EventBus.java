@@ -5,9 +5,12 @@ import com.osmantusx.OsmanTusX;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -72,20 +75,31 @@ public final class EventBus {
     private List<Method> resolveHandlers(Class<?> type) {
         return handlerCache.computeIfAbsent(type, key -> {
             List<Method> methods = new ArrayList<>();
-            for (Method method : key.getDeclaredMethods()) {
-                if (!method.isAnnotationPresent(EventHandler.class)) {
-                    continue;
+            // Walk the whole hierarchy so handlers declared on a base class (e.g.
+            // the shared HUD render method on HudModule) are picked up too. The
+            // subclass is visited first, so an overridden handler shadows the
+            // inherited one and is not registered twice.
+            Set<String> seen = new HashSet<>();
+            for (Class<?> current = key; current != null && current != Object.class;
+                 current = current.getSuperclass()) {
+                for (Method method : current.getDeclaredMethods()) {
+                    if (!method.isAnnotationPresent(EventHandler.class)) {
+                        continue;
+                    }
+                    if (!seen.add(method.getName() + Arrays.toString(method.getParameterTypes()))) {
+                        continue;
+                    }
+                    if (method.getParameterCount() != 1 || !Event.class.isAssignableFrom(method.getParameterTypes()[0])) {
+                        OsmanTusX.LOGGER.warn("Ignoring invalid @EventHandler {}#{}", current.getName(), method.getName());
+                        continue;
+                    }
+                    if (Modifier.isStatic(method.getModifiers())) {
+                        OsmanTusX.LOGGER.warn("Ignoring static @EventHandler {}#{}", current.getName(), method.getName());
+                        continue;
+                    }
+                    method.setAccessible(true);
+                    methods.add(method);
                 }
-                if (method.getParameterCount() != 1 || !Event.class.isAssignableFrom(method.getParameterTypes()[0])) {
-                    OsmanTusX.LOGGER.warn("Ignoring invalid @EventHandler {}#{}", key.getName(), method.getName());
-                    continue;
-                }
-                if (Modifier.isStatic(method.getModifiers())) {
-                    OsmanTusX.LOGGER.warn("Ignoring static @EventHandler {}#{}", key.getName(), method.getName());
-                    continue;
-                }
-                method.setAccessible(true);
-                methods.add(method);
             }
             return methods;
         });
