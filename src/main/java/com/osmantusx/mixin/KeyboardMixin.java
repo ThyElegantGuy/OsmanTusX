@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Keyboard.class)
 public class KeyboardMixin {
 
-    @Inject(method = "onKey", at = @At("HEAD"))
+    @Inject(method = "onKey", at = @At("HEAD"), cancellable = true)
     private void osman$onKey(long window, int action, KeyInput input, CallbackInfo ci) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (window != mc.getWindow().getHandle()) {
@@ -30,6 +30,9 @@ public class KeyboardMixin {
         }
         if (key == ClickGuiScreen.openKey()) {
             mc.setScreen(new ClickGuiScreen());
+            // Consume this key event so vanilla does not forward the same press
+            // to the freshly opened screen (which would immediately close it).
+            ci.cancel();
         } else {
             OsmanTusX.MODULES.onKeyPress(key);
         }
